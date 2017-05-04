@@ -1,12 +1,18 @@
+/** Client
 
-// Client
+Communication pipeline:
+	1. Initially send integer that will indicate size (in bytes) of incomming packet
+	2. Send our packet
+*/
 
 // Includes
 #pragma comment(lib, "ws2_32.lib")
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
-#include <WinSock2.h>
+
 #include <iostream>
+#include <string>
+#include <WinSock2.h>
 
 #define HOST_IP "127.0.0.1"
 #define HOST_PORT 1111
@@ -17,17 +23,28 @@ SOCKET Connection;
 
 void ClientThread() {
 
-	char buffer[256];
-
+	// Length of incomming buffer
+	int bufferlen;
+	
 	while (true) {
 		
+		// recieve buffer length
+		recv(Connection, (char*)&bufferlen, sizeof(int), NULL);
+	
+		// create a new recieve buffer
+		char* buffer = new char[bufferlen+1];
+		 // Set last char to be null terminator
+
 		// recieve message from server
-		recv(Connection, buffer, sizeof(buffer), NULL);
+		recv(Connection, buffer, bufferlen, NULL);
+		buffer[bufferlen] = '\0';
 	
 		// print out message
-		cout << buffer;
-	}
+		cout << buffer << endl;
 
+		// dealocate memory
+		delete[] buffer;
+	}
 }
 
 int main(int argc, char** argv) {
@@ -90,14 +107,17 @@ int main(int argc, char** argv) {
 
 
 
-	char buffer[256];
+	string buffer;
+
 	while (true) {
 
 		// Get message from client
-		cin.getline(buffer, sizeof(buffer));
-
+		getline(cin, buffer);
+		int bufferlen = buffer.size();
+		send(Connection, (char*)&bufferlen, sizeof(int), NULL);
+		
 		// Send message to server
-		send(Connection, buffer, sizeof(buffer), NULL);
+		send(Connection, buffer.c_str(), bufferlen, NULL);
 		Sleep(10);
 	}
 

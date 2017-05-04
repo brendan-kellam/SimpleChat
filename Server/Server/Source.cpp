@@ -8,8 +8,9 @@ Server
 #pragma comment(lib, "ws2_32.lib")
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
-#include <WinSock2.h>
 #include <iostream>
+#include <string>
+#include <WinSock2.h>
 
 #define HOST_IP "127.0.0.1"
 #define HOST_PORT 1111
@@ -23,23 +24,36 @@ int ConnectionCounter = 0;
 
 
 void ClientHandlerThread(int index) {
-
-	// Client's respective message buffer
-	char buffer[256];
+	
+	// Length of recived buffer
+	int bufferlen;
 
 	while (true) {
-		// Recive a new message from the current client 
-		recv(Connections[index], buffer, sizeof(buffer), NULL);
+
+
+		// Get buffer length 
+		recv(Connections[index], (char*) &bufferlen, sizeof(int), NULL);
 		
+		// Receive message from client. Write into buffer
+		char* buffer = new char[bufferlen];
+		recv(Connections[index], buffer, bufferlen, NULL);
+
+
 		// Loop all connected clients and send message
 		for (int i = 0; i < ConnectionCounter; i++) {
 
 			// Skip originating client
 			if (i == index) continue;
 
+
+			send(Connections[i], (char*)&bufferlen, sizeof(int), NULL);
+
 			// Send message to client
-			send(Connections[i], buffer, sizeof(buffer), NULL);
+			send(Connections[i], buffer, bufferlen, NULL);
 		}
+		
+		// deallocate memory
+		delete[] buffer;
 
 	}
 
@@ -103,10 +117,12 @@ int main(int argc, char** argv) {
 			cout << "Client connected!\n";
 
 			// Create a buffer with message
-			char message[256] = "Welcome to the server!";
+			string message = "Welcome to the server!";
+			int messagelen = message.size();
 
 			// Send new message to client
-			send(newConnection, message, sizeof(message), NULL);
+			send(newConnection, (char*)&messagelen, sizeof(int), NULL);
+			send(newConnection, message.c_str(), messagelen, NULL);
 			
 			// Add created connection to array
 			Connections[i] = newConnection;
