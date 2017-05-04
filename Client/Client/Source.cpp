@@ -1,8 +1,9 @@
 /** Client
 
 Communication pipeline:
-	1. Initially send integer that will indicate size (in bytes) of incomming packet
-	2. Send our packet
+	1. Send our packet type
+	2. Initially send integer that will indicate size (in bytes) of incomming packet
+	3. Send our packet
 */
 
 // Includes
@@ -21,30 +22,60 @@ using namespace std;
 
 SOCKET Connection;
 
-void ClientThread() {
+// Different packets
+enum Packet {
+	P_ChatMessage,
+	P_Test
+};
 
-	// Length of incomming buffer
-	int bufferlen;
+bool ProcessPacket(Packet packettype) {
+
+	switch (packettype) {
+
+	case P_ChatMessage:
+	{
+
+		int bufferlen; // length of recived chat message 
+
+		recv(Connection, (char*)&bufferlen, sizeof(int), NULL);  // recieve buffer length
+		char* buffer = new char[bufferlen + 1]; 				 // create a new recieve buffer
+		buffer[bufferlen] = '\0';								 // set last character to null terminator
+		recv(Connection, buffer, bufferlen, NULL); 		         // accept message
+
+		cout << buffer << endl; // print out message
+		delete[] buffer; 		// dealocate buffer
+		break;
+	}
+
+	case P_Test:
+		cout << "Recieved test packet!" << endl; 
+		break;
+
+	// handle unrecognized packets
+	default:
+		cout << "Unrecognized packet: " << packettype << endl;
+		break;
+
+	}
+
+
+	return true;
+}
+
+void ClientThread() {
 	
+
+	Packet packettype;
 	while (true) {
 		
-		// recieve buffer length
-		recv(Connection, (char*)&bufferlen, sizeof(int), NULL);
+		recv(Connection, (char*)&packettype, sizeof(Packet), NULL); // receive packet type
 	
-		// create a new recieve buffer
-		char* buffer = new char[bufferlen+1];
-		 // Set last char to be null terminator
-
-		// recieve message from server
-		recv(Connection, buffer, bufferlen, NULL);
-		buffer[bufferlen] = '\0';
-	
-		// print out message
-		cout << buffer << endl;
-
-		// dealocate memory
-		delete[] buffer;
+		if (!ProcessPacket(packettype)) // if packet is not properly processed, break from client-handler loop
+			break; 
+		
 	}
+
+	closesocket(Connection); // Close my socket when done
 }
 
 int main(int argc, char** argv) {
@@ -105,20 +136,20 @@ int main(int argc, char** argv) {
 	);
 
 
+	// -- Outgoing message handling -- //
 
-
-	string buffer;
-
+	string buffer; // output buffer
 	while (true) {
 
-		// Get message from client
-		getline(cin, buffer);
-		int bufferlen = buffer.size();
-		send(Connection, (char*)&bufferlen, sizeof(int), NULL);
+		getline(cin, buffer);			// get input from user
+		int bufferlen = buffer.size();	// get size of input
 		
-		// Send message to server
-		send(Connection, buffer.c_str(), bufferlen, NULL);
-		Sleep(10);
+		Packet packettype = P_ChatMessage;							 // create packet type to chat message
+		send(Connection, (char *)&packettype, sizeof(Packet), NULL); // send packet type
+		send(Connection, (char*)&bufferlen, sizeof(int), NULL);		 // send message length
+		send(Connection, buffer.c_str(), bufferlen, NULL);			 // send message
+
+		Sleep(10); // Sleep
 	}
 
 

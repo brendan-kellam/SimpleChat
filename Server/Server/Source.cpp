@@ -22,40 +22,60 @@ using namespace std;
 SOCKET Connections[MAX_CONNECTIONS];
 int ConnectionCounter = 0;
 
+// Different packets
+enum Packet {
+	P_ChatMessage,
+	P_Test
+};
 
-void ClientHandlerThread(int index) {
-	
-	// Length of recived buffer
-	int bufferlen;
+bool ProcessPacket(int id, Packet packettype) {
 
-	while (true) {
+	switch (packettype) {
+	case P_ChatMessage:
+	{
 
+		int bufferlen; // length of recived message
+		recv(Connections[id], (char*)&bufferlen, sizeof(int), NULL); // Get buffer length 
 
-		// Get buffer length 
-		recv(Connections[index], (char*) &bufferlen, sizeof(int), NULL);
-		
-		// Receive message from client. Write into buffer
-		char* buffer = new char[bufferlen];
-		recv(Connections[index], buffer, bufferlen, NULL);
+		char* buffer = new char[bufferlen];             // allocate memory for recieved message
+		recv(Connections[id], buffer, bufferlen, NULL); // recieve message from originating client
 
-
-		// Loop all connected clients and send message
+		// loop all connected clients
 		for (int i = 0; i < ConnectionCounter; i++) {
 
-			// Skip originating client
-			if (i == index) continue;
+			if (i == id) continue; 	// Skip originating client
 
+			send(Connections[i], (char*)&packettype, sizeof(Packet), NULL); // send chat message packet type
+			send(Connections[i], (char*)&bufferlen, sizeof(int), NULL);     // send length of chat message
+			send(Connections[i], buffer, bufferlen, NULL);					// send chat message
+		} 
 
-			send(Connections[i], (char*)&bufferlen, sizeof(int), NULL);
-
-			// Send message to client
-			send(Connections[i], buffer, bufferlen, NULL);
-		}
-		
-		// deallocate memory
-		delete[] buffer;
-
+		delete[] buffer; // deallocate memory
+		break; 
 	}
+
+	default:
+		cout << "Unrecognized packet: " << packettype << endl;
+		break;
+	
+	}
+
+
+	return true;
+}
+
+void ClientHandlerThread(int id) {
+	
+	Packet packettype;
+	while (true) {
+
+		recv(Connections[id], (char*)&packettype, sizeof(Packet), NULL); // Receive packet type from client
+
+		if (!ProcessPacket(id, packettype)) 
+			break;
+	}
+
+	closesocket(Connections[id]); //when done with a client, close the socket
 
 }
 
@@ -111,32 +131,32 @@ int main(int argc, char** argv) {
 		if (newConnection == 0) {
 			cout << "Failed to accept client connection...\n";
 		}
-
+		
 		// If the client connection was accepted
 		else {
 			cout << "Client connected!\n";
+			
+			int id = i;
+			Connections[id] = newConnection; // add connection to array 
+			ConnectionCounter++;			// increment connections counter
+			CreateThread(					// create thread for new client			   
+				NULL, NULL,	
+				(LPTHREAD_START_ROUTINE)ClientHandlerThread,
+				(LPVOID)(id), // parameter
+				NULL, NULL
+			);
 
-			// Create a buffer with message
-			string message = "Welcome to the server!";
+
+			Packet packettype = P_ChatMessage;		   // set packet type
+			string message = "Welcome to the server!"; // create welcome message
 			int messagelen = message.size();
 
-			// Send new message to client
-			send(newConnection, (char*)&messagelen, sizeof(int), NULL);
-			send(newConnection, message.c_str(), messagelen, NULL);
-			
-			// Add created connection to array
-			Connections[i] = newConnection;
-			
-			// Increment the number of connections
-			ConnectionCounter++;
+			send(newConnection, (char*)&packettype, sizeof(Packet), NULL); // send chat message packet type
+			send(newConnection, (char*)&messagelen, sizeof(int), NULL);	  // send length of chat message
+			send(newConnection, message.c_str(), messagelen, NULL);       // send chat message
 
-			// Create a new thread for the client
-			CreateThread(NULL, NULL,
-				(LPTHREAD_START_ROUTINE)ClientHandlerThread,
-				(LPVOID)(i), // parameter
-				NULL, NULL
-				);
-
+			Packet test = P_Test;
+			send(newConnection, (char*)&test, sizeof(Packet), NULL);
 		}
 	}
 
