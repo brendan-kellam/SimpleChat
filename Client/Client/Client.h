@@ -50,8 +50,6 @@ private:
 	bool GetString(string &_string);
 
 private: 
-	static Client* instance;
-
 	SOCKET Connection;				// Client's connection to server
 	SOCKADDR_IN addr;				// Address to be binded to our Connection sockets
 	int sizeofaddr = sizeof(addr);  // Needed for connect function
