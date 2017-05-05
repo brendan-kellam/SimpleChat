@@ -24,9 +24,58 @@ int ConnectionCounter = 0;
 
 // Different packets
 enum Packet {
-	P_ChatMessage,
-	P_Test
+	P_ChatMessage
 };
+
+bool SendInt(int id, int _int) {
+	int RetnCheck = send(Connections[id], (char*)&_int, sizeof(int), NULL); // send the int
+	return !(RetnCheck == SOCKET_ERROR);							   // Return false if there is a socket error (connection issue)
+}
+
+bool GetInt(int id, int &_int) {
+	int RetnCheck = recv(Connections[id], (char*)&_int, sizeof(int), NULL); // get the int
+	return !(RetnCheck == SOCKET_ERROR);							   // Return false if there is a socket error (connection issue)
+}
+
+bool SendPacketType(int id, Packet _packettype) {
+	int RetnCheck = send(Connections[id], (char*)&_packettype, sizeof(Packet), NULL); // send a packet type
+	return !(RetnCheck == SOCKET_ERROR);
+}
+
+bool GetPacketType(int id, Packet &_packettype) {
+	int RetnCheck = recv(Connections[id], (char*)&_packettype, sizeof(Packet), NULL); // get a packet type
+	return  !(RetnCheck == SOCKET_ERROR);
+}
+
+bool SendString(int id, string &_string) {
+
+	if (!SendPacketType(id, P_ChatMessage)) // attepmpt to send chat message packet
+		return false;					// failed to send string
+
+	int bufferlen = _string.size(); // get string length
+
+	if (!SendInt(id, bufferlen)) // send lengh of string 
+		return false;
+
+	int RetnCheck = send(Connections[id], _string.c_str(), bufferlen, NULL); // send string
+	return !(RetnCheck == SOCKET_ERROR);
+}
+
+bool GetString(int id, string &_string) {
+	int bufferlen;
+
+	if (!GetInt(id, bufferlen)) // Get bufferlength
+		return false;			// If error occurs
+
+	char* buffer = new char[bufferlen + 1]; 				   // create a new recieve buffer
+	buffer[bufferlen] = '\0';								   // set last character to null terminator
+	int RetnCheck = recv(Connections[id], buffer, bufferlen, NULL); // accept message
+
+	_string = buffer; // set return string
+	delete[] buffer; // dealocate buffer
+
+	return !(RetnCheck == SOCKET_ERROR);
+}
 
 bool ProcessPacket(int id, Packet packettype) {
 
@@ -34,26 +83,24 @@ bool ProcessPacket(int id, Packet packettype) {
 	case P_ChatMessage:
 	{
 
-		int bufferlen; // length of recived message
-		recv(Connections[id], (char*)&bufferlen, sizeof(int), NULL); // Get buffer length 
-
-		char* buffer = new char[bufferlen];             // allocate memory for recieved message
-		recv(Connections[id], buffer, bufferlen, NULL); // recieve message from originating client
+		string message;
+		if (!GetString(id, message)) // Get chat message from client
+			return false;
 
 		// loop all connected clients
 		for (int i = 0; i < ConnectionCounter; i++) {
 
 			if (i == id) continue; 	// Skip originating client
 
-			send(Connections[i], (char*)&packettype, sizeof(Packet), NULL); // send chat message packet type
-			send(Connections[i], (char*)&bufferlen, sizeof(int), NULL);     // send length of chat message
-			send(Connections[i], buffer, bufferlen, NULL);					// send chat message
+			if (!SendString(i, message)) {													  // Send message to connection @ index i
+				cout << "Failed to send message from id: " << id << ", to id: " << i << endl; // Error message
+			}
 		} 
 
-		delete[] buffer; // deallocate memory
+		cout << "Processed chat message packet from user id: " << id << endl;
 		break; 
 	}
-
+	
 	default:
 		cout << "Unrecognized packet: " << packettype << endl;
 		break;
@@ -68,19 +115,20 @@ void ClientHandlerThread(int id) {
 	
 	Packet packettype;
 	while (true) {
+			
+		if (!GetPacketType(id, packettype)) // Get packet type from client
+			break;							// If error occurs, break from loop
 
-		recv(Connections[id], (char*)&packettype, sizeof(Packet), NULL); // Receive packet type from client
-
-		if (!ProcessPacket(id, packettype)) 
-			break;
+		if (!ProcessPacket(id, packettype)) // Process packet
+			break;							// If error occurs, break from loop
 	}
 
+	std::cout << "Lost connection to client id: " << id << endl; // Prompt when client disconnects
 	closesocket(Connections[id]); //when done with a client, close the socket
 
 }
 
 int main(int argc, char** argv) {
-
 	cout << "server starting...\n";
 
 	// Winsock Startup
@@ -146,17 +194,9 @@ int main(int argc, char** argv) {
 				NULL, NULL
 			);
 
-
-			Packet packettype = P_ChatMessage;		   // set packet type
+	
 			string message = "Welcome to the server!"; // create welcome message
-			int messagelen = message.size();
-
-			send(newConnection, (char*)&packettype, sizeof(Packet), NULL); // send chat message packet type
-			send(newConnection, (char*)&messagelen, sizeof(int), NULL);	  // send length of chat message
-			send(newConnection, message.c_str(), messagelen, NULL);       // send chat message
-
-			Packet test = P_Test;
-			send(newConnection, (char*)&test, sizeof(Packet), NULL);
+			SendString(id, message);					   // send message
 		}
 	}
 
