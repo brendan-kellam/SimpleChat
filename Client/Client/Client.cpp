@@ -111,25 +111,62 @@ void Client::ClientThread() { // static method
 
 }
 
+bool Client::recvall(char* data, int totalbytes) {
+	int bytesreceived = 0; // Total # of bytes received
+
+	while (bytesreceived < totalbytes) {
+		
+		/* Recieve data from Socket
+		   Per itteration, offset pointer and the # of bytes to recieve
+		*/
+		int RetnCheck = recv(Connection, data + bytesreceived, totalbytes - bytesreceived, NULL);
+	
+		if (RetnCheck == SOCKET_ERROR) // If there was a connection issues
+			return false;
+
+		else if (RetnCheck == 0) // If we don't recieve any bytes 
+			return false;
+		
+		bytesreceived += RetnCheck; // Add to total bytes recieved
+	}
+
+	return true;
+}
+
+bool Client::sendall(char* data, int totalbytes) {
+
+	int bytessent = 0; // Total # of bytes sent
+	
+	while (bytessent < totalbytes) {
+		// Send data over socket
+		int RetnCheck = send(Connection, data + bytessent, totalbytes - bytessent, NULL);
+
+		if (RetnCheck == SOCKET_ERROR) // If there was a connection issues
+			return false;
+
+		else if (RetnCheck == 0) // If we don't recieve any bytes 
+			return false;
+
+		bytessent += RetnCheck;
+	}
+
+	return true;
+}
 
 bool Client::SendInt(int _int) {
-	int RetnCheck = send(Connection, (char*)&_int, sizeof(int), NULL); // send the int
-	return !(RetnCheck == SOCKET_ERROR);							   // Return false if there is a socket error (connection issue)
+	return sendall((char*)&_int, sizeof(int));
 }
 
 bool Client::GetInt(int &_int) {
-	int RetnCheck = recv(Connection, (char*)&_int, sizeof(int), NULL); // get the int
-	return !(RetnCheck == SOCKET_ERROR);
+	return recvall((char*)&_int, sizeof(int));
 }
 
 bool Client::SendPacketType(Packet _packettype) {
-	int RetnCheck = send(Connection, (char*)&_packettype, sizeof(Packet), NULL); // send a packet type
-	return !(RetnCheck == SOCKET_ERROR);
+	return sendall((char*)&_packettype, sizeof(Packet));
 }
 
 bool Client::GetPacketType(Packet &_packettype) {
-	int RetnCheck = recv(Connection, (char*)&_packettype, sizeof(Packet), NULL); // get a packet type
-	return  !(RetnCheck == SOCKET_ERROR);
+	return recvall((char*)&_packettype, sizeof(Packet));
 }
 
 bool Client::SendString(string &_string) {
@@ -142,8 +179,7 @@ bool Client::SendString(string &_string) {
 	if (!SendInt(bufferlen)) // send lengh of string 
 		return false;
 
-	int RetnCheck = send(Connection, _string.c_str(), bufferlen, NULL); // send string
-	return !(RetnCheck == SOCKET_ERROR);
+	return sendall((char*) _string.c_str(), bufferlen);
 }
 
 bool Client::GetString(string &_string) {
@@ -154,10 +190,15 @@ bool Client::GetString(string &_string) {
 
 	char* buffer = new char[bufferlen + 1]; 				   // create a new recieve buffer
 	buffer[bufferlen] = '\0';								   // set last character to null terminator
-	int RetnCheck = recv(Connection, buffer, bufferlen, NULL); // accept message
+
+	// If there is a connection issue while 
+	if (!recvall(buffer, bufferlen)) {
+		delete[] buffer; // dealocate buffer before returning
+		return false; 
+	}
 
 	_string = buffer; // set return string
 	delete[] buffer; // dealocate buffer
 
-	return !(RetnCheck == SOCKET_ERROR);
+	return true;
 }

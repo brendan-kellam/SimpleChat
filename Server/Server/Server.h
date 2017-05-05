@@ -35,11 +35,13 @@ private:
 	static void ClientHandlerThread(int id);
 
 	// Sending functions
+	bool sendall(int id, char* data, int totalbytes);
 	bool SendInt(int id, int _int);
 	bool SendPacketType(int id, Packet _packettype);
 	bool SendString(int id, string &_string);
 
 	// Getting functions
+	bool recvall(int id, char* data, int totalbytes);
 	bool GetInt(int id, int &_int);
 	bool GetPacketType(int id, Packet &_packettype);
 	bool GetString(int id, string &_string);

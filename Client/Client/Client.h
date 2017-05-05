@@ -37,17 +37,22 @@ public:
 	bool SendString(string &_string);
 
 private:
-	bool ProcessPacket(Packet _packettype);
-	static void ClientThread();
+	bool ProcessPacket(Packet _packettype); // Process a new packettype
+	static void ClientThread();				// Thread for handling incoming packets {~static~} [seperate thread]
 
 	// Sending functions
+	bool sendall(char* data, int totalbytes);
 	bool SendInt(int _int);
 	bool SendPacketType(Packet _packettype);
 
 	// Getting functions
-	bool GetInt(int &_int);
-	bool GetPacketType(Packet &_packettype);
-	bool GetString(string &_string);
+	bool recvall(char* data, int totalbytes); 
+	bool GetInt(int &_int);					  
+	bool GetPacketType(Packet &_packettype);  
+	bool GetString(string &_string);		 
+
+
+
 
 private: 
 	SOCKET Connection;				// Client's connection to server
