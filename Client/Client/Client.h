@@ -42,12 +42,12 @@ private:
 
 	// Sending functions
 	bool sendall(char* data, int totalbytes);
-	bool SendInt(int _int);
+	bool SendInt32_t(int32_t _int32_t);
 	bool SendPacketType(Packet _packettype);
 
 	// Getting functions
 	bool recvall(char* data, int totalbytes); 
-	bool GetInt(int &_int);					  
+	bool GetInt32_t(int32_t &_int32_t);					  
 	bool GetPacketType(Packet &_packettype);  
 	bool GetString(string &_string);		 
 

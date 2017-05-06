@@ -8,6 +8,7 @@ Server
 
 
 int main(int argc, char** argv) {
+
 	
 	// Create a new local server on port 1111
 	Server myServer(1111);

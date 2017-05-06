@@ -36,13 +36,13 @@ private:
 
 	// Sending functions
 	bool sendall(int id, char* data, int totalbytes);
-	bool SendInt(int id, int _int);
+	bool SendInt32_t(int id, int32_t _int32_t);
 	bool SendPacketType(int id, Packet _packettype);
 	bool SendString(int id, string &_string);
 
 	// Getting functions
 	bool recvall(int id, char* data, int totalbytes);
-	bool GetInt(int id, int &_int);
+	bool GetInt32_t(int id, int32_t &_int32_t);
 	bool GetPacketType(int id, Packet &_packettype);
 	bool GetString(int id, string &_string);
 

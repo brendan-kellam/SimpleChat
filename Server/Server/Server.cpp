@@ -176,20 +176,32 @@ bool Server::sendall(int id, char* data, int totalbytes) {
 	return true;
 }
 
-bool Server::SendInt(int id, int _int) {
-	return sendall(id, (char*)&_int, sizeof(int));
+bool Server::SendInt32_t(int id, int32_t _int32_t) {
+	_int32_t = htonl(_int32_t); // Convert long from Host Byte Order to Network byte order
+	return sendall(id, (char*)&_int32_t, sizeof(int32_t));
 }
 
-bool Server::GetInt(int id, int &_int) {
-	return recvall(id, (char*)&_int, sizeof(int));
+bool Server::GetInt32_t(int id, int32_t &_int32_t) {
+
+	if (!recvall(id, (char*)&_int32_t, sizeof(int32_t)))
+		return false;	
+
+	_int32_t = ntohl(_int32_t); // Convert long from Host Byte Order to Network byte order
+	return true;
 }
 
 bool Server::SendPacketType(int id, Packet _packettype) {
-	return sendall(id, (char*)&_packettype, sizeof(Packet));
+	return SendInt32_t(id, _packettype);
 }
 
 bool Server::GetPacketType(int id, Packet &_packettype) {
-	return recvall(id, (char*)&_packettype, sizeof(Packet));
+
+	int32_t packettype; // Create a local intermediate integer
+	if (!GetInt32_t(id, packettype)) // Try to receive packet type..
+		return false;			 // If error occurs, return false
+
+	_packettype = (Packet)packettype; // Case intermediate to type packet
+	return true;
 }
 
 bool Server::SendString(int id, string &_string) {
@@ -199,7 +211,7 @@ bool Server::SendString(int id, string &_string) {
 
 	int bufferlen = _string.size(); // get string length
 
-	if (!SendInt(id, bufferlen)) // send lengh of string 
+	if (!SendInt32_t(id, bufferlen)) // send lengh of string 
 		return false;
 
 	return sendall(id, (char*)_string.c_str(), bufferlen);
@@ -208,7 +220,7 @@ bool Server::SendString(int id, string &_string) {
 bool Server::GetString(int id, string &_string) {
 	int bufferlen;
 
-	if (!GetInt(id, bufferlen)) // Get bufferlength
+	if (!GetInt32_t(id, bufferlen)) // Get bufferlength
 		return false;			// If error occurs
 
 	char* buffer = new char[bufferlen + 1]; 				   // create a new recieve buffer
