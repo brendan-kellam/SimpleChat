@@ -47,6 +47,7 @@ bool Client::Connect() {
 bool Client::ProcessPacket(Packet _packettype) {
 	switch (_packettype) { // Check for specific packet type
 
+	// If chat message is recieved
 	case P_ChatMessage:
 	{
 
@@ -58,9 +59,40 @@ bool Client::ProcessPacket(Packet _packettype) {
 		break;
 	}
 
+	// If we are receiving a byte buffer from server
+	case P_FileTransferByteBuffer:
+	{
+		int32_t buffersize;
+		if (!GetInt32_t(buffersize))
+			return false;
+		
+		if (!recvall(file.buffer, buffersize))
+			return false;
+		
+		file.outfileStream.write(file.buffer, buffersize);
+		file.bytesWritten += buffersize;
+		cout << "Recieved byte buffer for file transfer of size: " << buffersize << endl;
+		
+		// Request next file packet
+		SendPacketType(P_FileTransferRequestNextBuffer);
+		break;
+	}
+
+	// If we are receiving a EOF flag from server
+	case P_FileTransfer_EndOfFile:
+	{
+		cout << "File transfer completed. File received." << endl;
+		cout << "File Name: " << file.fileName << endl;
+		cout << "File Size(bytes): " << file.bytesWritten << endl;
+		file.bytesWritten = 0;
+		file.outfileStream.close();
+		break;
+	}
+
+
 	// handle unrecognized packets
 	default:
-		cout << "Unrecognized packet: " << _packettype << endl;
+		cout << "ERROR: Function(Client::ProcessPacket) - Unrecognized packet: " << _packettype << endl;
 		break;
 
 	}
@@ -109,6 +141,35 @@ void Client::ClientThread() { // static method
 		std::cout << "Socket was not able to be closed." << endl;
 	}
 
+}
+
+bool Client::RequestFile(string FileName) 
+{
+	/* FLOW */
+	// Open file to write to
+	// Ensure file was opened correctly
+	// Send packet to server to request file
+	// Send name of file to server
+
+	file.outfileStream.open(FileName, std::ios::binary);
+	file.fileName = FileName;
+	file.bytesWritten = 0;
+
+	if (!file.outfileStream.is_open())
+	{
+		std::cout << "ERROR: Function(Client::RequestFile) - Unable to open file: " << FileName << endl;
+		return false;
+	}
+
+	std::cout << "Requesting file from server:  " << FileName << std::endl;
+
+	if (!SendPacketType(P_FileTransferRequestFile))
+		return false;
+
+	if (!SendString(FileName, false))
+		return false;
+
+	return true;
 }
 
 bool Client::recvall(char* data, int totalbytes) {
@@ -181,10 +242,14 @@ bool Client::GetPacketType(Packet &_packettype) {
 	return true;
 }
 
-bool Client::SendString(string &_string) {
-
-	if (!SendPacketType(P_ChatMessage)) // attepmpt to send chat message packet
-		return false;					// failed to send string
+bool Client::SendString(string &_string, bool IncludePacketType) {
+	
+	// If we choose to include the packettype
+	if (IncludePacketType)
+	{
+		if (!SendPacketType(P_ChatMessage)) // attepmpt to send chat message packet
+			return false;					// failed to send string
+	}
 
 	int bufferlen = _string.size(); // get string length
 

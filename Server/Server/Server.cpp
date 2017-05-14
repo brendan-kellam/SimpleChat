@@ -68,7 +68,7 @@ bool Server::ListenForNewConnection() {
 	else {
 		cout << "Client connected!\n";
 
-		Connections[TotalConnections] = newConnection; // add connection to array 
+		connections[TotalConnections].socket = newConnection; // add connection to array 
 		CreateThread(					// create thread for new client			   
 			NULL, NULL,
 			(LPTHREAD_START_ROUTINE)ClientHandlerThread,
@@ -76,8 +76,8 @@ bool Server::ListenForNewConnection() {
 			NULL, NULL
 			);
 
-		string message = "Welcome to the server!"; // create welcome message
-		SendString(TotalConnections, message);	   // send message
+		//string message = "Welcome to the server!"; // create welcome message
+		//SendString(TotalConnections, message);	   // send message
 		TotalConnections++; // increment total # of connections
 		
 		return true;
@@ -108,12 +108,115 @@ bool Server::ProcessPacket(int id, Packet _packettype) {
 		break;
 	}
 
+	// When client request a file from the server
+	case P_FileTransferRequestFile:
+	{
+		string FileName;
+		if (!GetString(id, FileName))
+			return false;
+
+
+		// attempt to open file to read from
+		connections[id].file.infileStream.open(FileName, std::ios::binary | std::ios::ate);
+
+		// check if file failed to open
+		if (!connections[id].file.infileStream.is_open())
+		{
+			cout << "Client: " << id << " requested file: " << FileName << ". File does not exist" << endl;
+			string errMsg = "Requested file: " + FileName + " does not exist or was not found.";
+			if (!SendString(id, errMsg)) // Send error message to client
+				return false;
+
+			// No connection issue, so return true
+			return true;
+		}
+
+		/* -- At this point, the file exists and is ready to be sent -- */
+
+		connections[id].file.fileName = FileName;						   // Set file name
+		connections[id].file.fileSize = connections[id].file.infileStream.tellg(); // Get file size
+		connections[id].file.infileStream.seekg(0);					   // Set stream cursor position so no offest exists (start of file)
+		connections[id].file.fileOffset = 0;							   // Update file offest for knowing when we hit EOF
+
+		/* -- Ready to send first byte buffer -- */
+		if (!SendFileByteBuffer(id))
+			return false;
+
+		break;
+	}
+
+	case P_FileTransferRequestNextBuffer:
+	{
+		if (!SendFileByteBuffer(id))
+			return false;
+
+		break;
+	}
+
 	default:
 		cout << "Unrecognized packet: " << _packettype << endl;
 		break;
 
 	}
 
+
+	return true;
+}
+
+bool Server::SendFileByteBuffer(int id) 
+{
+
+	// If end of file is already reached 
+	if (connections[id].file.fileOffset >= connections[id].file.fileSize)
+		return true;
+
+	// Send packet type for file byte buffer transfer
+	if (!SendPacketType(id, P_FileTransferByteBuffer))
+		return false;
+
+	connections[id].file.remainingBytes = connections[id].file.fileSize - connections[id].file.fileOffset;
+
+	// If # of remaining bytes is greater than our packet size
+	if (connections[id].file.remainingBytes > connections[id].file.buffersize)
+	{
+		// Read from filestream into buffer
+		connections[id].file.infileStream.read(connections[id].file.buffer, connections[id].file.buffersize);
+
+		// Send int of buffer size
+		if (!SendInt32_t(id, connections[id].file.buffersize))
+			return false;
+
+		// Send bytes
+		if (!sendall(id, connections[id].file.buffer, connections[id].file.buffersize))
+			return false;
+	
+		// increment offset
+		connections[id].file.fileOffset += connections[id].file.buffersize; 
+	} 
+	else
+	{
+		connections[id].file.infileStream.read(connections[id].file.buffer, connections[id].file.remainingBytes);
+		if (!SendInt32_t(id, connections[id].file.remainingBytes))
+			return false;
+
+		if (!sendall(id, connections[id].file.buffer, connections[id].file.remainingBytes))
+			return false;
+
+		connections[id].file.fileOffset += connections[id].file.remainingBytes;
+	}
+
+	// If we are at EOF
+	if (connections[id].file.fileOffset == connections[id].file.fileSize)
+	{
+		if (!SendPacketType(id, P_FileTransfer_EndOfFile))
+			return false;
+
+		cout << endl << "File Sent: " << connections[id].file.fileName << endl;
+		cout << "File size(bytes): " << connections[id].file.fileSize << endl << endl;
+
+		// close stream
+		connections[id].file.infileStream.close();
+	}
 
 	return true;
 }
@@ -130,7 +233,7 @@ void Server::ClientHandlerThread(int id) { // ~~static method~~
 	}
 
 	std::cout << "Lost connection to client id: " << id << endl; // Prompt when client disconnects
-	closesocket(serverptr->Connections[id]); //when done with a client, close the socket	
+	closesocket(serverptr->connections[id].socket); //when done with a client, close the socket	
 }
 
 /* --- Getters and setters --- */
@@ -142,7 +245,7 @@ bool Server::recvall(int id, char* data, int totalbytes) {
 		/* Recieve data from Socket
 		Per itteration, offset pointer and the # of bytes to recieve
 		*/
-		int RetnCheck = recv(Connections[id], data + bytesreceived, totalbytes - bytesreceived, NULL);
+		int RetnCheck = recv(connections[id].socket, data + bytesreceived, totalbytes - bytesreceived, NULL);
 
 		if (RetnCheck == SOCKET_ERROR) // If there was a connection issues
 			return false;
@@ -162,7 +265,7 @@ bool Server::sendall(int id, char* data, int totalbytes) {
 
 	while (bytessent < totalbytes) {
 		// Send data over socket
-		int RetnCheck = send(Connections[id], data + bytessent, totalbytes - bytessent, NULL);
+		int RetnCheck = send(connections[id].socket, data + bytessent, totalbytes - bytessent, NULL);
 
 		if (RetnCheck == SOCKET_ERROR) // If there was a connection issues
 			return false;

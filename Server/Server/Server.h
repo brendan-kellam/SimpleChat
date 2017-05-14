@@ -11,13 +11,27 @@
 #include <iostream>
 #include <string>
 #include <WinSock2.h>
+#include "FileTransferData.h"
 
 using namespace std;
 
 
-// Different packets
+// Packet type enumeration
 enum Packet {
-	P_ChatMessage
+	P_ChatMessage,					// Send simple chat message
+	P_FileTransferRequestFile,	    // [C->S] Request a file to transfer
+	P_FileTransfer_EndOfFile,       // [S->C] Sent for when file transfer is completed
+	P_FileTransferByteBuffer,       // [S->C] Sent before sending byte buffer for file transfer
+	P_FileTransferRequestNextBuffer // [C->S] Sent to request the next buffer for file
+};
+
+struct Connection
+{
+	// Socket to client
+	SOCKET socket;
+
+	// FileTransferData for given client
+	FileTransferData file;
 };
 
 
@@ -32,6 +46,8 @@ public:
 private:
 	
 	bool ProcessPacket(int id, Packet packettype);
+	bool SendFileByteBuffer(int id);
+
 	static void ClientHandlerThread(int id);
 
 	// Sending functions
@@ -49,7 +65,7 @@ private:
 
 private:
 	 
-	SOCKET Connections[MAX_CONNECTIONS]; // Array of all clients that can connect to server
+	Connection connections[MAX_CONNECTIONS]; // Array of all clients that can connect to server
 	int TotalConnections = 0;			 // Total number of clients
 
 	SOCKADDR_IN addr; 			// Address that we shall bind our listening socket to

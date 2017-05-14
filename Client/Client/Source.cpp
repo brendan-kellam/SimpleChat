@@ -13,6 +13,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
+	myClient.RequestFile("image.jpg");
 
 	// -- Outgoing message handling -- //
 	string input;
