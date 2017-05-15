@@ -13,8 +13,8 @@
 #include <WinSock2.h>
 #include "FileTransferData.h"
 #include "PacketType.h"
-
-using namespace std;
+#include "PacketManger.h"
+#include "PacketStructs.h"
 
 struct Connection
 {
@@ -23,6 +23,9 @@ struct Connection
 
 	// FileTransferData for given client
 	FileTransferData file;
+
+	// PacketManager for outgoing data for this connection
+	PacketManager pm;
 };
 
 
@@ -40,18 +43,19 @@ private:
 	bool SendFileByteBuffer(int id);
 
 	static void ClientHandlerThread(int id);
+	static void PacketSenderThread();		// Sender thread for ALL clients
 
 	// Sending functions
 	bool sendall(int id, char* data, int totalbytes);
 	bool SendInt32_t(int id, int32_t _int32_t);
 	bool SendPacketType(int id, PacketType _packettype);
-	bool SendString(int id, string &_string);
+	void SendString(int id, std::string &_string);
 
 	// Getting functions
 	bool recvall(int id, char* data, int totalbytes);
 	bool GetInt32_t(int id, int32_t &_int32_t);
 	bool GetPacketType(int id, PacketType &_packettype);
-	bool GetString(int id, string &_string);
+	bool GetString(int id, std::string &_string);
 
 
 private:

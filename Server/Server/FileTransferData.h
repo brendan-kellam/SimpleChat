@@ -1,3 +1,6 @@
+#ifndef FILETRANSFERDATA_H
+#define FILETRANSFERDATA_H
+
 #pragma once
 #include <fstream>
 
@@ -13,3 +16,5 @@ struct FileTransferData
 	std::ofstream		outfileStream;		// Output stream
 	char				buffer[buffersize]; // buffer used for sending/receiving
 };
+
+#endif

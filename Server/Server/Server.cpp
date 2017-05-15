@@ -3,7 +3,7 @@
 
 /* -- constructor -- */
 Server::Server(int PORT, bool BroadcastPublically) {
-	cout << "server starting...\n";
+	std::cout << "server starting...\n";
 
 	// Winsock Startup
 	WSAData wsaData;
@@ -28,12 +28,12 @@ Server::Server(int PORT, bool BroadcastPublically) {
 	addr.sin_family = AF_INET; // IPv4 Socket
 
 
-							   // Create socket to listen for new connections
+	// Create socket to listen for new connections
 	sListen = socket(AF_INET, SOCK_STREAM, NULL);
 
-	// Bind the address to the socket
-	if (bind(sListen, (SOCKADDR*)&addr, sizeof(addr)) == SOCKET_ERROR) { // Handle errors while binding
-		string ErrorMsg = "Failed to bind the address to our listening socket";
+	if (bind(sListen, (SOCKADDR*)&addr, sizeof(addr)) == SOCKET_ERROR) //Bind the address to the socket, if we fail to bind the address..
+	{
+		std::string ErrorMsg = "Failed to bind the address to our listening socket. Winsock Error:" + std::to_string(WSAGetLastError());
 		MessageBoxA(NULL, ErrorMsg.c_str(), "Error", MB_OK | MB_ICONERROR);
 		exit(1);
 	}
@@ -42,12 +42,16 @@ Server::Server(int PORT, bool BroadcastPublically) {
 	   "SOMAXCONN": Socket outstanding maxiumum connectiosn
 	   (The total amount of people that can try and connect at once) */
 	if (listen(sListen, SOMAXCONN) == SOCKET_ERROR) { // Handle errors while listening
-		string ErrorMsg = "Failed to listen on listening socket.";
+		std::string ErrorMsg = "Failed to listen on listening socket.";
 		MessageBoxA(NULL, ErrorMsg.c_str(), "Error", MB_OK | MB_ICONERROR);
 		exit(1);
 	}
 	
 	serverptr = this;
+
+	// Create a new packet sender thread
+	CreateThread(NULL, NULL, (LPTHREAD_START_ROUTINE)PacketSenderThread, NULL, NULL, NULL);
+
 }
 
 bool Server::ListenForNewConnection() {
@@ -60,13 +64,13 @@ bool Server::ListenForNewConnection() {
 
 	// Check if accepting client connection failed 
 	if (newConnection == 0) {
-		cout << "Failed to accept client connection...\n";
+		std::cout << "Failed to accept client connection...\n";
 		return false;
 	}
 
 	// If the client connection was accepted
 	else {
-		cout << "Client connected!\n";
+		std::cout << "Client connected!\n";
 
 		connections[TotalConnections].socket = newConnection; // add connection to array 
 		CreateThread(					// create thread for new client			   
@@ -90,7 +94,7 @@ bool Server::ProcessPacket(int id, PacketType _packettype) {
 	case PacketType::ChatMessage:
 	{
 
-		string message;
+		std::string message;
 		if (!GetString(id, message)) // Get chat message from client
 			return false;
 
@@ -99,19 +103,18 @@ bool Server::ProcessPacket(int id, PacketType _packettype) {
 
 			if (i == id) continue; 	// Skip originating client
 
-			if (!SendString(i, message)) {													  // Send message to connection @ index i
-				cout << "Failed to send message from id: " << id << ", to id: " << i << endl; // Error message
-			}
+			// Send message to connection i
+			SendString(i, message);
 		}
 
-		cout << "Processed chat message packet from user id: " << id << endl;
+		std::cout << "Processed chat message packet from user id: " << id << std::endl;
 		break;
 	}
 
 	// When client request a file from the server
 	case PacketType::FileTransferRequestFile:
 	{
-		string FileName;
+		std::string FileName;
 		if (!GetString(id, FileName))
 			return false;
 
@@ -122,10 +125,9 @@ bool Server::ProcessPacket(int id, PacketType _packettype) {
 		// check if file failed to open
 		if (!connections[id].file.infileStream.is_open())
 		{
-			cout << "Client: " << id << " requested file: " << FileName << ". File does not exist" << endl;
-			string errMsg = "Requested file: " + FileName + " does not exist or was not found.";
-			if (!SendString(id, errMsg)) // Send error message to client
-				return false;
+			std::cout << "Client: " << id << " requested file: " << FileName << ". File does not exist" << std::endl;
+			std::string errMsg = "Requested file: " + FileName + " does not exist or was not found.";
+			SendString(id, errMsg); // Send error message to client
 
 			// No connection issue, so return true
 			return true;
@@ -154,7 +156,7 @@ bool Server::ProcessPacket(int id, PacketType _packettype) {
 	}
 
 	default:
-		cout << "Unrecognized packet: " << _packettype << endl;
+		std::cout << "Unrecognized packet: " << _packettype << std::endl;
 		break;
 
 	}
@@ -211,8 +213,8 @@ bool Server::SendFileByteBuffer(int id)
 		if (!SendPacketType(id, PacketType::FileTransfer_EndOfFile))
 			return false;
 
-		cout << endl << "File Sent: " << connections[id].file.fileName << endl;
-		cout << "File size(bytes): " << connections[id].file.fileSize << endl << endl;
+		std::cout << std::endl << "File Sent: " << connections[id].file.fileName << std::endl;
+		std::cout << "File size(bytes): " << connections[id].file.fileSize << std::endl << std::endl;
 
 		// close stream
 		connections[id].file.infileStream.close();
@@ -232,8 +234,34 @@ void Server::ClientHandlerThread(int id) { // ~~static method~~
 			break;							// If error occurs, break from loop
 	}
 
-	std::cout << "Lost connection to client id: " << id << endl; // Prompt when client disconnects
+	std::cout << "Lost connection to client id: " << id << std::endl; // Prompt when client disconnects
 	closesocket(serverptr->connections[id].socket); //when done with a client, close the socket	
+}
+
+void Server::PacketSenderThread()
+{
+	while (true)
+	{
+		// Loop through all connections
+		for (int i = 0; i < serverptr->TotalConnections; i++)
+		{
+			
+			// If a given connection has a pending packet
+			if (serverptr->connections[i].pm.HasPendingPackets())
+			{
+				// Get packet
+				Packet p = serverptr->connections[i].pm.Retrieve();
+
+				// Attempt to send data 
+				if (!serverptr->sendall(i, p.getBuffer(), p.getSize()))
+				{
+					std::cout << "ERROR: Function(Server::PacketSenderThread) - Failed to send packet to ID: " << i << std::endl;
+				}
+				delete p.getBuffer(); // Clean up buffer from the packet p
+			}
+		}
+		Sleep(5);
+	}
 }
 
 /* --- Getters and setters --- */
@@ -307,20 +335,13 @@ bool Server::GetPacketType(int id, PacketType &_packettype) {
 	return true;
 }
 
-bool Server::SendString(int id, string &_string) {
+void Server::SendString(int id, std::string &_string) {
 
-	if (!SendPacketType(id, PacketType::ChatMessage)) // attepmpt to send chat message packet
-		return false;					// failed to send string
-
-	int bufferlen = _string.size(); // get string length
-
-	if (!SendInt32_t(id, bufferlen)) // send lengh of string 
-		return false;
-
-	return sendall(id, (char*)_string.c_str(), bufferlen);
+	PS::ChatMessage message(_string);
+	connections[id].pm.Append(message.toPacket());
 }
 
-bool Server::GetString(int id, string &_string) {
+bool Server::GetString(int id, std::string &_string) {
 	int bufferlen;
 
 	if (!GetInt32_t(id, bufferlen)) // Get bufferlength

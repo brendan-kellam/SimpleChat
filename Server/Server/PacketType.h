@@ -1,4 +1,10 @@
+#ifndef PACKETTYPE_H
+#define PACKETTYPE_H
+
 #pragma once
+
+#include <iostream>
+
 
 // PacketType enum class
 enum class PacketType
@@ -17,3 +23,5 @@ inline std::ostream& operator<<(std::ostream& os, const PacketType& packettype)
 	os << (int32_t)packettype;
 	return os;
 }
+
+#endif

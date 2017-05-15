@@ -18,21 +18,17 @@ Communication pipeline:
 #include "FileTransferData.h"
 #include "PacketType.h"
 
-using namespace std;
-
-
-
 class Client {
 
 public:
 
-	Client(string IP, int PORT); // private constructor
+	Client(std::string IP, int PORT); // private constructor
 
 	bool Connect();
 	bool CloseConnection();
 
-	bool SendString(string &_string, bool IncludePacketType = true);
-	bool RequestFile(string FileName);
+	bool SendString(std::string &_string, bool IncludePacketType = true);
+	bool RequestFile(std::string FileName);
 
 private:
 	bool ProcessPacket(PacketType _packettype); // Process a new packettype
@@ -47,7 +43,7 @@ private:
 	bool recvall(char* data, int totalbytes); 
 	bool GetInt32_t(int32_t &_int32_t);					  
 	bool GetPacketType(PacketType& _packettype);  
-	bool GetString(string &_string);		 
+	bool GetString(std::string &_string);		 
 
 
 

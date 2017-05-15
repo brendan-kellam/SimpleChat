@@ -2,9 +2,9 @@
 #include "Client.h"
 
 // --- constructor ---
-Client::Client(string IP, int PORT) {	
+Client::Client(std::string IP, int PORT) {	
 
-	cout << "client running...\n";
+	std::cout << "client running...\n";
 
 	//Winsock Startup
 	WSAData wsaData;
@@ -51,11 +51,11 @@ bool Client::ProcessPacket(PacketType _packettype) {
 	case PacketType::ChatMessage:
 	{
 
-		string message;
+		std::string message;
 		if (!GetString(message)) // attempt to get the message string
 			return false;
 
-		cout << "Message: " << message << endl; // display message to user
+		std::cout << "Message: " << message << std::endl; // display message to user
 		break;
 	}
 
@@ -71,7 +71,7 @@ bool Client::ProcessPacket(PacketType _packettype) {
 		
 		file.outfileStream.write(file.buffer, buffersize);
 		file.bytesWritten += buffersize;
-		cout << "Recieved byte buffer for file transfer of size: " << buffersize << endl;
+		std::cout << "Recieved byte buffer for file transfer of size: " << buffersize << std::endl;
 		
 		// Request next file packet
 		SendPacketType(PacketType::FileTransferRequestNextBuffer);
@@ -81,9 +81,9 @@ bool Client::ProcessPacket(PacketType _packettype) {
 	// If we are receiving a EOF flag from server
 	case PacketType::FileTransfer_EndOfFile:
 	{
-		cout << "File transfer completed. File received." << endl;
-		cout << "File Name: " << file.fileName << endl;
-		cout << "File Size(bytes): " << file.bytesWritten << endl;
+		std::cout << "File transfer completed. File received." << std::endl;
+		std::cout << "File Name: " << file.fileName << std::endl;
+		std::cout << "File Size(bytes): " << file.bytesWritten << std::endl;
 		file.bytesWritten = 0;
 		file.outfileStream.close();
 		break;
@@ -92,7 +92,7 @@ bool Client::ProcessPacket(PacketType _packettype) {
 
 	// handle unrecognized packets
 	default:
-		cout << "ERROR: Function(Client::ProcessPacket) - Unrecognized packet: " << _packettype << endl;
+		std::cout << "ERROR: Function(Client::ProcessPacket) - Unrecognized packet: " << _packettype << std::endl;
 		break;
 
 	}
@@ -109,7 +109,7 @@ bool Client::CloseConnection() {
 			return true;
 		
 		// Handle error
-		string ErrorMessage = "Failed to close socket. Winsock Error: " + to_string(WSAGetLastError()) + ".";
+		std::string ErrorMessage = "Failed to close socket. Winsock Error: " + std::to_string(WSAGetLastError()) + ".";
 		MessageBoxA(NULL, ErrorMessage.c_str(), "Error", MB_OK | MB_ICONERROR);
 		return false;
 	}
@@ -135,15 +135,15 @@ void Client::ClientThread() { // static method
 	std::cout << "Lost connection to the server." << std::endl;
 
 	if (clientptr->CloseConnection()) {
-		std::cout << "Socket to the server was closed successfuly." << endl;
+		std::cout << "Socket to the server was closed successfuly." << std::endl;
 	}
 	else {
-		std::cout << "Socket was not able to be closed." << endl;
+		std::cout << "Socket was not able to be closed." << std::endl;
 	}
 
 }
 
-bool Client::RequestFile(string FileName) 
+bool Client::RequestFile(std::string FileName) 
 {
 	/* FLOW */
 	// Open file to write to
@@ -157,7 +157,7 @@ bool Client::RequestFile(string FileName)
 
 	if (!file.outfileStream.is_open())
 	{
-		std::cout << "ERROR: Function(Client::RequestFile) - Unable to open file: " << FileName << endl;
+		std::cout << "ERROR: Function(Client::RequestFile) - Unable to open file: " << FileName << std::endl;
 		return false;
 	}
 
@@ -242,7 +242,7 @@ bool Client::GetPacketType(PacketType &_packettype) {
 	return true;
 }
 
-bool Client::SendString(string &_string, bool IncludePacketType) {
+bool Client::SendString(std::string &_string, bool IncludePacketType) {
 	
 	// If we choose to include the packettype
 	if (IncludePacketType)
@@ -259,7 +259,7 @@ bool Client::SendString(string &_string, bool IncludePacketType) {
 	return sendall((char*) _string.c_str(), bufferlen);
 }
 
-bool Client::GetString(string &_string) {
+bool Client::GetString(std::string &_string) {
 	int bufferlen;
 
 	if (!GetInt32_t(bufferlen)) // Get bufferlength
