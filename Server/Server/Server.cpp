@@ -84,10 +84,10 @@ bool Server::ListenForNewConnection() {
 	}
 }
 
-bool Server::ProcessPacket(int id, Packet _packettype) {
+bool Server::ProcessPacket(int id, PacketType _packettype) {
 
 	switch (_packettype) {
-	case P_ChatMessage:
+	case PacketType::ChatMessage:
 	{
 
 		string message;
@@ -109,7 +109,7 @@ bool Server::ProcessPacket(int id, Packet _packettype) {
 	}
 
 	// When client request a file from the server
-	case P_FileTransferRequestFile:
+	case PacketType::FileTransferRequestFile:
 	{
 		string FileName;
 		if (!GetString(id, FileName))
@@ -145,7 +145,7 @@ bool Server::ProcessPacket(int id, Packet _packettype) {
 		break;
 	}
 
-	case P_FileTransferRequestNextBuffer:
+	case PacketType::FileTransferRequestNextBuffer:
 	{
 		if (!SendFileByteBuffer(id))
 			return false;
@@ -171,7 +171,7 @@ bool Server::SendFileByteBuffer(int id)
 		return true;
 
 	// Send packet type for file byte buffer transfer
-	if (!SendPacketType(id, P_FileTransferByteBuffer))
+	if (!SendPacketType(id, PacketType::FileTransferByteBuffer))
 		return false;
 
 	connections[id].file.remainingBytes = connections[id].file.fileSize - connections[id].file.fileOffset;
@@ -208,7 +208,7 @@ bool Server::SendFileByteBuffer(int id)
 	// If we are at EOF
 	if (connections[id].file.fileOffset == connections[id].file.fileSize)
 	{
-		if (!SendPacketType(id, P_FileTransfer_EndOfFile))
+		if (!SendPacketType(id, PacketType::FileTransfer_EndOfFile))
 			return false;
 
 		cout << endl << "File Sent: " << connections[id].file.fileName << endl;
@@ -222,7 +222,7 @@ bool Server::SendFileByteBuffer(int id)
 }
 
 void Server::ClientHandlerThread(int id) { // ~~static method~~
-	Packet packettype;
+	PacketType packettype;
 	while (true) {
 
 		if (!serverptr->GetPacketType(id, packettype)) // Get packet type from client
@@ -293,23 +293,23 @@ bool Server::GetInt32_t(int id, int32_t &_int32_t) {
 	return true;
 }
 
-bool Server::SendPacketType(int id, Packet _packettype) {
-	return SendInt32_t(id, _packettype);
+bool Server::SendPacketType(int id, PacketType _packettype) {
+	return SendInt32_t(id, (int32_t) _packettype);
 }
 
-bool Server::GetPacketType(int id, Packet &_packettype) {
+bool Server::GetPacketType(int id, PacketType &_packettype) {
 
 	int32_t packettype; // Create a local intermediate integer
 	if (!GetInt32_t(id, packettype)) // Try to receive packet type..
 		return false;			 // If error occurs, return false
 
-	_packettype = (Packet)packettype; // Case intermediate to type packet
+	_packettype = (PacketType)packettype; // Case intermediate to type packet
 	return true;
 }
 
 bool Server::SendString(int id, string &_string) {
 
-	if (!SendPacketType(id, P_ChatMessage)) // attepmpt to send chat message packet
+	if (!SendPacketType(id, PacketType::ChatMessage)) // attepmpt to send chat message packet
 		return false;					// failed to send string
 
 	int bufferlen = _string.size(); // get string length

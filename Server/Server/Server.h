@@ -12,18 +12,9 @@
 #include <string>
 #include <WinSock2.h>
 #include "FileTransferData.h"
+#include "PacketType.h"
 
 using namespace std;
-
-
-// Packet type enumeration
-enum Packet {
-	P_ChatMessage,					// Send simple chat message
-	P_FileTransferRequestFile,	    // [C->S] Request a file to transfer
-	P_FileTransfer_EndOfFile,       // [S->C] Sent for when file transfer is completed
-	P_FileTransferByteBuffer,       // [S->C] Sent before sending byte buffer for file transfer
-	P_FileTransferRequestNextBuffer // [C->S] Sent to request the next buffer for file
-};
 
 struct Connection
 {
@@ -45,7 +36,7 @@ public:
 
 private:
 	
-	bool ProcessPacket(int id, Packet packettype);
+	bool ProcessPacket(int id, PacketType packettype);
 	bool SendFileByteBuffer(int id);
 
 	static void ClientHandlerThread(int id);
@@ -53,13 +44,13 @@ private:
 	// Sending functions
 	bool sendall(int id, char* data, int totalbytes);
 	bool SendInt32_t(int id, int32_t _int32_t);
-	bool SendPacketType(int id, Packet _packettype);
+	bool SendPacketType(int id, PacketType _packettype);
 	bool SendString(int id, string &_string);
 
 	// Getting functions
 	bool recvall(int id, char* data, int totalbytes);
 	bool GetInt32_t(int id, int32_t &_int32_t);
-	bool GetPacketType(int id, Packet &_packettype);
+	bool GetPacketType(int id, PacketType &_packettype);
 	bool GetString(int id, string &_string);
 
 

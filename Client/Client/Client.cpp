@@ -44,11 +44,11 @@ bool Client::Connect() {
 	return true;
 }
 
-bool Client::ProcessPacket(Packet _packettype) {
+bool Client::ProcessPacket(PacketType _packettype) {
 	switch (_packettype) { // Check for specific packet type
 
 	// If chat message is recieved
-	case P_ChatMessage:
+	case PacketType::ChatMessage:
 	{
 
 		string message;
@@ -60,7 +60,7 @@ bool Client::ProcessPacket(Packet _packettype) {
 	}
 
 	// If we are receiving a byte buffer from server
-	case P_FileTransferByteBuffer:
+	case PacketType::FileTransferByteBuffer:
 	{
 		int32_t buffersize;
 		if (!GetInt32_t(buffersize))
@@ -74,12 +74,12 @@ bool Client::ProcessPacket(Packet _packettype) {
 		cout << "Recieved byte buffer for file transfer of size: " << buffersize << endl;
 		
 		// Request next file packet
-		SendPacketType(P_FileTransferRequestNextBuffer);
+		SendPacketType(PacketType::FileTransferRequestNextBuffer);
 		break;
 	}
 
 	// If we are receiving a EOF flag from server
-	case P_FileTransfer_EndOfFile:
+	case PacketType::FileTransfer_EndOfFile:
 	{
 		cout << "File transfer completed. File received." << endl;
 		cout << "File Name: " << file.fileName << endl;
@@ -119,7 +119,7 @@ bool Client::CloseConnection() {
 
 void Client::ClientThread() { // static method
 
-	Packet packettype; // accepted packet type
+	PacketType packettype; // accepted packet type
 
 	while (true) { // -- Client handler loop --- //
 
@@ -163,7 +163,7 @@ bool Client::RequestFile(string FileName)
 
 	std::cout << "Requesting file from server:  " << FileName << std::endl;
 
-	if (!SendPacketType(P_FileTransferRequestFile))
+	if (!SendPacketType(PacketType::FileTransferRequestFile))
 		return false;
 
 	if (!SendString(FileName, false))
@@ -228,17 +228,17 @@ bool Client::GetInt32_t(int32_t &_int32_t) {
 	return true;
 }
 
-bool Client::SendPacketType(Packet _packettype) {
-	return SendInt32_t(_packettype); // attempt to send the packet
+bool Client::SendPacketType(PacketType _packettype) {
+	return SendInt32_t((int32_t) _packettype); // attempt to send the packet
 }
 
-bool Client::GetPacketType(Packet &_packettype) {
+bool Client::GetPacketType(PacketType &_packettype) {
 
 	int32_t packettype; // Create a local intermediate integer
 	if (!GetInt32_t(packettype)) // Try to receive packet type..
 		return false;			 // If error occurs, return false
 
-	_packettype = (Packet) packettype; // Case intermediate to type packet
+	_packettype = (PacketType) packettype; // Case intermediate to type packet
 	return true;
 }
 
@@ -247,7 +247,7 @@ bool Client::SendString(string &_string, bool IncludePacketType) {
 	// If we choose to include the packettype
 	if (IncludePacketType)
 	{
-		if (!SendPacketType(P_ChatMessage)) // attepmpt to send chat message packet
+		if (!SendPacketType(PacketType::ChatMessage)) // attepmpt to send chat message packet
 			return false;					// failed to send string
 	}
 
