@@ -10,13 +10,14 @@ namespace PS // Packet structures namespce
 {
 	struct ChatMessage
 	{
+
 	public:
 		ChatMessage(std::string);
 		Packet toPacket();		 // Converts ChatMessage to packet
 
 	private:
-		std::string message;
-
+		std::string message;	 // Message held in ChatMessage 
+	
 	};
 
 }

@@ -57,32 +57,58 @@ Server::Server(int PORT, bool BroadcastPublically) {
 bool Server::ListenForNewConnection() {
 
 	// Socket to hold the client's connection
-	SOCKET newConnection;
+	SOCKET newConnectionSocket;
 
 	// Accept a new client connection (accept is most likely running on another thread)
-	newConnection = accept(sListen, (SOCKADDR*)&addr, &addrlen);
+	newConnectionSocket = accept(sListen, (SOCKADDR*)&addr, &addrlen);
 
 	// Check if accepting client connection failed 
-	if (newConnection == 0) {
+	if (newConnectionSocket == 0) {
 		std::cout << "Failed to accept client connection...\n";
 		return false;
 	}
+	else // If the client connection was accepted
+	{
 
-	// If the client connection was accepted
-	else {
-		std::cout << "Client connected!\n";
+		std::lock_guard<std::mutex> lock(connectionMgr_mutex); // lock connection manager mutex
 
-		connections[TotalConnections].socket = newConnection; // add connection to array 
-		CreateThread(					// create thread for new client			   
+		int conid = connections.size(); // Default new connection id
+
+		// TODO: Optimize!
+		if (UnusedConnections > 0)
+		{
+			// Loop all connections
+			for (size_t i = 0; i < connections.size(); i++)
+			{
+				// find first instance of inactive connection
+				if (!connections[i]->activeConnection)
+				{
+					connections[i]->socket = newConnectionSocket;
+					connections[i]->activeConnection = true;
+					conid = i;
+					UnusedConnections--;
+					break;
+				}
+			}
+		}
+		else
+		{
+			// Default case
+			std::shared_ptr<Connection> newConnection(new Connection(newConnectionSocket));
+			connections.push_back(newConnection);
+		}
+
+		std::cout << "Client connected! ID: " << conid << std::endl;
+
+
+		// create thread for new client
+		CreateThread(						   
 			NULL, NULL,
 			(LPTHREAD_START_ROUTINE)ClientHandlerThread,
-			(LPVOID)(TotalConnections), // parameter
+			(LPVOID)(conid), 
 			NULL, NULL
 			);
 
-		//string message = "Welcome to the server!"; // create welcome message
-		//SendString(TotalConnections, message);	   // send message
-		TotalConnections++; // increment total # of connections
 		
 		return true;
 	}
@@ -99,9 +125,13 @@ bool Server::ProcessPacket(int id, PacketType _packettype) {
 			return false;
 
 		// loop all connected clients
-		for (int i = 0; i < TotalConnections; i++) {
+		for (size_t i = 0; i < connections.size(); i++) {
 
-			if (i == id) continue; 	// Skip originating client
+			if (!connections[i]->activeConnection) // If connection is not active
+				continue;
+
+			if (i == id) 
+				continue; 	// Skip originating client
 
 			// Send message to connection i
 			SendString(i, message);
@@ -120,10 +150,10 @@ bool Server::ProcessPacket(int id, PacketType _packettype) {
 
 
 		// attempt to open file to read from
-		connections[id].file.infileStream.open(FileName, std::ios::binary | std::ios::ate);
+		connections[id]->file.infileStream.open(FileName, std::ios::binary | std::ios::ate);
 
 		// check if file failed to open
-		if (!connections[id].file.infileStream.is_open())
+		if (!connections[id]->file.infileStream.is_open())
 		{
 			std::cout << "Client: " << id << " requested file: " << FileName << ". File does not exist" << std::endl;
 			std::string errMsg = "Requested file: " + FileName + " does not exist or was not found.";
@@ -135,10 +165,10 @@ bool Server::ProcessPacket(int id, PacketType _packettype) {
 
 		/* -- At this point, the file exists and is ready to be sent -- */
 
-		connections[id].file.fileName = FileName;						   // Set file name
-		connections[id].file.fileSize = connections[id].file.infileStream.tellg(); // Get file size
-		connections[id].file.infileStream.seekg(0);					   // Set stream cursor position so no offest exists (start of file)
-		connections[id].file.fileOffset = 0;							   // Update file offest for knowing when we hit EOF
+		connections[id]->file.fileName = FileName;						   // Set file name
+		connections[id]->file.fileSize = connections[id]->file.infileStream.tellg(); // Get file size
+		connections[id]->file.infileStream.seekg(0);					   // Set stream cursor position so no offest exists (start of file)
+		connections[id]->file.fileOffset = 0;							   // Update file offest for knowing when we hit EOF
 
 		/* -- Ready to send first byte buffer -- */
 		if (!SendFileByteBuffer(id))
@@ -169,55 +199,55 @@ bool Server::SendFileByteBuffer(int id)
 {
 
 	// If end of file is already reached 
-	if (connections[id].file.fileOffset >= connections[id].file.fileSize)
+	if (connections[id]->file.fileOffset >= connections[id]->file.fileSize)
 		return true;
 
 	// Send packet type for file byte buffer transfer
 	if (!SendPacketType(id, PacketType::FileTransferByteBuffer))
 		return false;
 
-	connections[id].file.remainingBytes = connections[id].file.fileSize - connections[id].file.fileOffset;
+	connections[id]->file.remainingBytes = connections[id]->file.fileSize - connections[id]->file.fileOffset;
 
 	// If # of remaining bytes is greater than our packet size
-	if (connections[id].file.remainingBytes > connections[id].file.buffersize)
+	if (connections[id]->file.remainingBytes > connections[id]->file.buffersize)
 	{
 		// Read from filestream into buffer
-		connections[id].file.infileStream.read(connections[id].file.buffer, connections[id].file.buffersize);
+		connections[id]->file.infileStream.read(connections[id]->file.buffer, connections[id]->file.buffersize);
 
 		// Send int of buffer size
-		if (!SendInt32_t(id, connections[id].file.buffersize))
+		if (!SendInt32_t(id, connections[id]->file.buffersize))
 			return false;
 
 		// Send bytes
-		if (!sendall(id, connections[id].file.buffer, connections[id].file.buffersize))
+		if (!sendall(id, connections[id]->file.buffer, connections[id]->file.buffersize))
 			return false;
 	
 		// increment offset
-		connections[id].file.fileOffset += connections[id].file.buffersize; 
+		connections[id]->file.fileOffset += connections[id]->file.buffersize; 
 	} 
 	else
 	{
-		connections[id].file.infileStream.read(connections[id].file.buffer, connections[id].file.remainingBytes);
-		if (!SendInt32_t(id, connections[id].file.remainingBytes))
+		connections[id]->file.infileStream.read(connections[id]->file.buffer, connections[id]->file.remainingBytes);
+		if (!SendInt32_t(id, connections[id]->file.remainingBytes))
 			return false;
 
-		if (!sendall(id, connections[id].file.buffer, connections[id].file.remainingBytes))
+		if (!sendall(id, connections[id]->file.buffer, connections[id]->file.remainingBytes))
 			return false;
 
-		connections[id].file.fileOffset += connections[id].file.remainingBytes;
+		connections[id]->file.fileOffset += connections[id]->file.remainingBytes;
 	}
 
 	// If we are at EOF
-	if (connections[id].file.fileOffset == connections[id].file.fileSize)
+	if (connections[id]->file.fileOffset == connections[id]->file.fileSize)
 	{
 		if (!SendPacketType(id, PacketType::FileTransfer_EndOfFile))
 			return false;
 
-		std::cout << std::endl << "File Sent: " << connections[id].file.fileName << std::endl;
-		std::cout << "File size(bytes): " << connections[id].file.fileSize << std::endl << std::endl;
+		std::cout << std::endl << "File Sent: " << connections[id]->file.fileName << std::endl;
+		std::cout << "File size(bytes): " << connections[id]->file.fileSize << std::endl << std::endl;
 
 		// close stream
-		connections[id].file.infileStream.close();
+		connections[id]->file.infileStream.close();
 	}
 
 	return true;
@@ -235,7 +265,8 @@ void Server::ClientHandlerThread(int id) { // ~~static method~~
 	}
 
 	std::cout << "Lost connection to client id: " << id << std::endl; // Prompt when client disconnects
-	closesocket(serverptr->connections[id].socket); //when done with a client, close the socket	
+	serverptr->DisconnectClient(id);
+	return; 
 }
 
 void Server::PacketSenderThread()
@@ -243,14 +274,14 @@ void Server::PacketSenderThread()
 	while (true)
 	{
 		// Loop through all connections
-		for (int i = 0; i < serverptr->TotalConnections; i++)
+		for (size_t i = 0; i < serverptr->connections.size(); i++)
 		{
 			
 			// If a given connection has a pending packet
-			if (serverptr->connections[i].pm.HasPendingPackets())
+			if (serverptr->connections[i]->pm.HasPendingPackets())
 			{
 				// Get packet
-				Packet p = serverptr->connections[i].pm.Retrieve();
+				Packet p = serverptr->connections[i]->pm.Retrieve();
 
 				// Attempt to send data 
 				if (!serverptr->sendall(i, p.getBuffer(), p.getSize()))
@@ -273,7 +304,7 @@ bool Server::recvall(int id, char* data, int totalbytes) {
 		/* Recieve data from Socket
 		Per itteration, offset pointer and the # of bytes to recieve
 		*/
-		int RetnCheck = recv(connections[id].socket, data + bytesreceived, totalbytes - bytesreceived, NULL);
+		int RetnCheck = recv(connections[id]->socket, data + bytesreceived, totalbytes - bytesreceived, NULL);
 
 		if (RetnCheck == SOCKET_ERROR) // If there was a connection issues
 			return false;
@@ -293,7 +324,7 @@ bool Server::sendall(int id, char* data, int totalbytes) {
 
 	while (bytessent < totalbytes) {
 		// Send data over socket
-		int RetnCheck = send(connections[id].socket, data + bytessent, totalbytes - bytessent, NULL);
+		int RetnCheck = send(connections[id]->socket, data + bytessent, totalbytes - bytessent, NULL);
 
 		if (RetnCheck == SOCKET_ERROR) // If there was a connection issues
 			return false;
@@ -338,7 +369,7 @@ bool Server::GetPacketType(int id, PacketType &_packettype) {
 void Server::SendString(int id, std::string &_string) {
 
 	PS::ChatMessage message(_string);
-	connections[id].pm.Append(message.toPacket());
+	connections[id]->pm.Append(message.toPacket());
 }
 
 bool Server::GetString(int id, std::string &_string) {
@@ -360,5 +391,39 @@ bool Server::GetString(int id, std::string &_string) {
 
 	return true;
 }
-
 /* -------------------------- */
+
+void Server::DisconnectClient(int id) // attempt to disconnect client
+{
+	std::lock_guard<std::mutex> lock(connectionMgr_mutex); // Lock connection manager mutex
+	
+	if (!connections[id]->activeConnection) // if our client has already been disconnected
+	{	
+		return;
+	}
+
+	connections[id]->pm.Clear();							   // Clear out all remaining packets in queue for this connection
+	connections[id]->activeConnection = false;			   // Update connection's activity
+	closesocket(connections[id]->socket);				   // close the socket for this connection
+
+	if (id = (connections.size() -1)) // Check if id is last in connections
+	{
+		connections.pop_back(); // Remove client from vector
+
+		for (size_t i = (connections.size() - 1); i >= 0 && connections.size() > 0; i--)
+		{
+			if (connections[i]->activeConnection)
+				break;
+
+			connections.pop_back();
+			UnusedConnections--;
+		}
+	
+	}
+	else // If our id is not the last
+	{
+		UnusedConnections++;
+	}
+}
+
+

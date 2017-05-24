@@ -10,14 +10,25 @@
 
 #include <iostream>
 #include <string>
+#include <vector> 
 #include <WinSock2.h>
 #include "FileTransferData.h"
 #include "PacketType.h"
 #include "PacketManger.h"
 #include "PacketStructs.h"
 
-struct Connection
+class Connection
 {
+public:
+	Connection(SOCKET socket)
+	{
+		this->socket = socket;
+		this->activeConnection = true; // Default to active connection
+	}
+
+	// True if connection is active, false if inactive
+	bool activeConnection;
+
 	// Socket to client
 	SOCKET socket;
 
@@ -57,11 +68,12 @@ private:
 	bool GetPacketType(int id, PacketType &_packettype);
 	bool GetString(int id, std::string &_string);
 
+	void DisconnectClient(int id);
 
 private:
-	 
-	Connection connections[MAX_CONNECTIONS]; // Array of all clients that can connect to server
-	int TotalConnections = 0;			 // Total number of clients
+	std::vector<std::shared_ptr<Connection>> connections; // vector of shared pointers of all clients that can connect to server
+	std::mutex connectionMgr_mutex;		 // mutex for managing connections
+	int UnusedConnections = 0;			 // # of Inactive Connection objects that can be reused
 
 	SOCKADDR_IN addr; 			// Address that we shall bind our listening socket to
 	int addrlen = sizeof(addr);	// Length of the address
