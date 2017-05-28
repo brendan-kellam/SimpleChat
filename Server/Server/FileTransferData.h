@@ -14,7 +14,6 @@ struct FileTransferData
 	int					remainingBytes;	    // # of bytes not yet sent
 	std::ifstream		infileStream;		// Input stream
 	std::ofstream		outfileStream;		// Output stream
-	char				buffer[buffersize]; // buffer used for sending/receiving
 };
 
 #endif

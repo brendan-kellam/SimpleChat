@@ -58,8 +58,6 @@ private:
 
 	// Sending functions
 	bool sendall(int id, char* data, int totalbytes);
-	bool SendInt32_t(int id, int32_t _int32_t);
-	bool SendPacketType(int id, PacketType _packettype);
 	void SendString(int id, std::string &_string);
 
 	// Getting functions

@@ -72,7 +72,7 @@ bool Server::ListenForNewConnection() {
 
 		std::lock_guard<std::mutex> lock(connectionMgr_mutex); // lock connection manager mutex
 
-		int conid = connections.size(); // Default new connection id
+		size_t conid = connections.size(); // Default new connection id
 
 		// TODO: Optimize!
 		if (UnusedConnections > 0)
@@ -134,7 +134,7 @@ bool Server::ProcessPacket(int id, PacketType _packettype) {
 				continue; 	// Skip originating client
 
 			// Send message to connection i
-			SendString(i, message);
+			SendString((int) i, message);
 		}
 
 		std::cout << "Processed chat message packet from user id: " << id << std::endl;
@@ -202,46 +202,36 @@ bool Server::SendFileByteBuffer(int id)
 	if (connections[id]->file.fileOffset >= connections[id]->file.fileSize)
 		return true;
 
-	// Send packet type for file byte buffer transfer
-	if (!SendPacketType(id, PacketType::FileTransferByteBuffer))
-		return false;
-
 	connections[id]->file.remainingBytes = connections[id]->file.fileSize - connections[id]->file.fileOffset;
 
-	// If # of remaining bytes is greater than our packet size
+	// CASE: # of remaining bytes is greater than our packet size
 	if (connections[id]->file.remainingBytes > connections[id]->file.buffersize)
 	{
-		// Read from filestream into buffer
-		connections[id]->file.infileStream.read(connections[id]->file.buffer, connections[id]->file.buffersize);
 
-		// Send int of buffer size
-		if (!SendInt32_t(id, connections[id]->file.buffersize))
-			return false;
-
-		// Send bytes
-		if (!sendall(id, connections[id]->file.buffer, connections[id]->file.buffersize))
-			return false;
-	
-		// increment offset
-		connections[id]->file.fileOffset += connections[id]->file.buffersize; 
+		PS::FileDataBuffer fileData;																	// Create new FileDataBuffer packet structure
+		connections[id]->file.infileStream.read(fileData.databuffer, connections[id]->file.buffersize);	// Read from the connection's request file
+																											// To the FileDataBuffer buffer
+		fileData.size = connections[id]->file.buffersize;												// Set fileData size
+		connections[id]->file.fileOffset += connections[id]->file.buffersize;							// Increment the FileTransferData's offset
+		connections[id]->pm.Append(fileData.toPacket());												// Appened created packet to packet manager
 	} 
+
+	// CASE: # of remaining bytes is less than our packet size
 	else
 	{
-		connections[id]->file.infileStream.read(connections[id]->file.buffer, connections[id]->file.remainingBytes);
-		if (!SendInt32_t(id, connections[id]->file.remainingBytes))
-			return false;
-
-		if (!sendall(id, connections[id]->file.buffer, connections[id]->file.remainingBytes))
-			return false;
-
+	
+		PS::FileDataBuffer fileData;																		// -- Same procedure, but with remaining bytes -- // 
+		connections[id]->file.infileStream.read(fileData.databuffer, connections[id]->file.remainingBytes);	
+		fileData.size = connections[id]->file.remainingBytes;
 		connections[id]->file.fileOffset += connections[id]->file.remainingBytes;
+		connections[id]->pm.Append(fileData.toPacket());
 	}
 
 	// If we are at EOF
 	if (connections[id]->file.fileOffset == connections[id]->file.fileSize)
 	{
-		if (!SendPacketType(id, PacketType::FileTransfer_EndOfFile))
-			return false;
+		Packet EOFPacket(PacketType::FileTransfer_EndOfFile);
+		connections[id]->pm.Append(EOFPacket);
 
 		std::cout << std::endl << "File Sent: " << connections[id]->file.fileName << std::endl;
 		std::cout << "File size(bytes): " << connections[id]->file.fileSize << std::endl << std::endl;
@@ -338,11 +328,6 @@ bool Server::sendall(int id, char* data, int totalbytes) {
 	return true;
 }
 
-bool Server::SendInt32_t(int id, int32_t _int32_t) {
-	_int32_t = htonl(_int32_t); // Convert long from Host Byte Order to Network byte order
-	return sendall(id, (char*)&_int32_t, sizeof(int32_t));
-}
-
 bool Server::GetInt32_t(int id, int32_t &_int32_t) {
 
 	if (!recvall(id, (char*)&_int32_t, sizeof(int32_t)))
@@ -350,10 +335,6 @@ bool Server::GetInt32_t(int id, int32_t &_int32_t) {
 
 	_int32_t = ntohl(_int32_t); // Convert long from Host Byte Order to Network byte order
 	return true;
-}
-
-bool Server::SendPacketType(int id, PacketType _packettype) {
-	return SendInt32_t(id, (int32_t) _packettype);
 }
 
 bool Server::GetPacketType(int id, PacketType &_packettype) {

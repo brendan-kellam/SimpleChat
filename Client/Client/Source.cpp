@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	//myClient.RequestFile("image.jpg");
+	myClient.RequestFile("Super Bad.avi");
 
 	// -- Outgoing message handling -- //
 	std::string input;
